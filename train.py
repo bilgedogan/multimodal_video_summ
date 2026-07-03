@@ -24,20 +24,29 @@ if __name__ == '__main__':
     parser.add_argument('--tag', type = str, default = 'summe_split0')
     parser.add_argument('--lr', type = float, default = 1e-4, help = 'the learning rate')
     parser.add_argument('--pt_path', type=str, default='llama_emb/summe_sum/')
+    parser.add_argument('--audio_path', type=str, default=None, help='path to whisper audio features h5, defaults to audio_features/<dataset>_whisper.h5')
+    parser.add_argument('--visual_path', type=str, default=None, help='path to clip visual features h5, defaults to clip_features/<dataset>_clip.h5')
+    parser.add_argument('--audio_dim', type=int, default=512)
+    parser.add_argument('--visual_dim', type=int, default=1024)
+    parser.add_argument('--exp_name', type=str, default='exp_default')
 
-    
+
     opt = parser.parse_args()
     kwargs = vars(opt)
     config = Config(**kwargs)
 
     if config.dataset == 'summe':
         from utils.summe_dataset import SumMeLLaMADataset, TrainBatchCollator, ValBatchCollator
-        train_dataset = SumMeLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path)
-        val_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path)
+        audio_path = config.audio_path or 'audio_features/summe_whisper.h5'
+        visual_path = config.visual_path or 'clip_features/summe_clip.h5'
+        train_dataset = SumMeLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
+        val_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
     elif config.dataset == 'tvsum':
         from utils.tvsum_dataset import TVSumLLaMADataset, TrainBatchCollator,ValBatchCollator
-        train_dataset = TVSumLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path)
-        val_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path)
+        audio_path = config.audio_path or 'audio_features/tvsum_whisper.h5'
+        visual_path = config.visual_path or 'clip_features/tvsum_clip.h5'
+        train_dataset = TVSumLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
+        val_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
     
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=8, collate_fn = TrainBatchCollator(), pin_memory=True, persistent_workers=True)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8, collate_fn = ValBatchCollator(), pin_memory=True, persistent_workers=True)

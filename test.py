@@ -24,17 +24,26 @@ if __name__ == '__main__':
     parser.add_argument('--weights', default='Summaries/summe_head2_layer3/summe/summe_split0/best_rho_model/epoch=122-val_sRho=0.214.ckpt', type=str, help='Path to weights')
     parser.add_argument('--result_dir', default='Summaries/summe_head2_layer3/summe/', type=str)
     parser.add_argument('--pt_path', type=str, default='llama_emb/summe_sum/')
-    
+    parser.add_argument('--audio_path', type=str, default=None, help='path to whisper audio features h5, defaults to audio_features/<dataset>_whisper.h5')
+    parser.add_argument('--visual_path', type=str, default=None, help='path to clip visual features h5, defaults to clip_features/<dataset>_clip.h5')
+    parser.add_argument('--audio_dim', type=int, default=512)
+    parser.add_argument('--visual_dim', type=int, default=1024)
+    parser.add_argument('--exp_name', type=str, default='exp_default')
+
     opt = parser.parse_args()
     kwargs = vars(opt)
     config = Config(**kwargs)
 
     if 'summe' in config.dataset:
         from utils.summe_dataset import SumMeLLaMADataset, ValBatchCollator
-        test_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path)
+        audio_path = config.audio_path or 'audio_features/summe_whisper.h5'
+        visual_path = config.visual_path or 'clip_features/summe_clip.h5'
+        test_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
     elif 'tvsum' in config.dataset:
         from utils.tvsum_dataset import TVSumLLaMADataset, ValBatchCollator
-        test_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path)
+        audio_path = config.audio_path or 'audio_features/tvsum_whisper.h5'
+        visual_path = config.visual_path or 'clip_features/tvsum_clip.h5'
+        test_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
 
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=32, collate_fn = ValBatchCollator(), pin_memory=True)
 

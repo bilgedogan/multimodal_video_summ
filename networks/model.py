@@ -21,7 +21,14 @@ class LLMVS(pl.LightningModule):
         self.d_linear1 = nn.Linear(5120, self.config.reduced_dim)
         self.d_linear1_norm = nn.LayerNorm(self.config.reduced_dim)
         self.c_max_pooling = nn.AdaptiveMaxPool1d(1)
-            
+
+        self.a_linear1 = nn.Linear(self.config.audio_dim, self.config.reduced_dim)
+        self.a_linear1_norm = nn.LayerNorm(self.config.reduced_dim)
+        self.v_linear1 = nn.Linear(self.config.visual_dim, self.config.reduced_dim)
+        self.v_linear1_norm = nn.LayerNorm(self.config.reduced_dim)
+
+        self.modality_weights = nn.Parameter(torch.ones(3))
+
         encoder_layer_agg = nn.TransformerEncoderLayer(d_model = self.config.reduced_dim, nhead = self.config.num_heads, batch_first = True)
         self.transformer_encoder_agg = nn.TransformerEncoder(encoder_layer_agg, num_layers=self.config.num_layers)
 
@@ -49,48 +56,60 @@ class LLMVS(pl.LightningModule):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, x, mask):
+    def forward(self, x_text, x_audio, x_visual, mask):
 
-        x = self.c_max_pooling(x.permute(0,2,1)).squeeze(2)
+        x_text = self.c_max_pooling(x_text.permute(0,2,1)).squeeze(2)
+        x_text = self.d_linear1(x_text)
+        x_text = self.d_linear1_norm(x_text)
 
-        x = self.d_linear1(x)
-        x = self.d_linear1_norm(x) 
+        x_audio = self.a_linear1(x_audio)
+        x_audio = self.a_linear1_norm(x_audio)
+
+        x_visual = self.v_linear1(x_visual)
+        x_visual = self.v_linear1_norm(x_visual)
+
+        w = torch.softmax(self.modality_weights, dim=0)
+        x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
         x = x.unsqueeze(0)
-        
+
         x = self.transformer_encoder_agg(x)
         x = self.mlp_head(x.squeeze(0))
 
         return  x
-    
+
     def training_step(self, train_batch, batch_idx):
         x1 = train_batch['llama_embedding_userprompt'].squeeze(0)
         x2 = train_batch['llama_embedding_generation'].squeeze(0)
-        
-        x = torch.cat((x1, x2), dim=1)  
+
+        x_text = torch.cat((x1, x2), dim=1)
+        x_audio = train_batch['audio_features'].squeeze(0)
+        x_visual = train_batch['visual_features'].squeeze(0)
 
         y = train_batch['gtscore']
         mask = train_batch['mask']
-            
-        score = self.forward(x, mask=mask).squeeze(1).unsqueeze(0)
-        del x, mask
+
+        score = self.forward(x_text, x_audio, x_visual, mask=mask).squeeze(1).unsqueeze(0)
+        del x_text, x_audio, x_visual, mask
         score = score.clamp(0.0, 1.0)
-        
+
         loss = self.criterion(score, y).mean()
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size = 1)
 
         torch.cuda.empty_cache()
         return loss
-    
+
     def validation_step(self, val_batch, batch_idx):
         x1 = val_batch['llama_embedding_userprompt'].squeeze(0)
         x2 = val_batch['llama_embedding_generation'].squeeze(0)
-        
-        x = torch.cat((x1, x2), dim=1)  
+
+        x_text = torch.cat((x1, x2), dim=1)
+        x_audio = val_batch['audio_features'].squeeze(0)
+        x_visual = val_batch['visual_features'].squeeze(0)
         mask = val_batch['mask']
 
-        score = self.forward(x, mask=mask).squeeze(1).unsqueeze(0)
-        del x, mask
+        score = self.forward(x_text, x_audio, x_visual, mask=mask).squeeze(1).unsqueeze(0)
+        del x_text, x_audio, x_visual, mask
         score = score.clamp(0.0, 1.0)
 
         score = score.squeeze()
@@ -103,31 +122,35 @@ class LLMVS(pl.LightningModule):
         picks = val_batch['picks'][0]
         machine_summary = generate_summary(score, cps, n_frames, nfps, picks)
 
-        kTau, sRho = evaluate_summary(machine_summary, gt_summary, video_name, score, eval_data=self.config.dataset)
+        kTau, sRho, f1 = evaluate_summary(machine_summary, gt_summary, video_name, score, eval_data=self.config.dataset)
 
-        return kTau, sRho
+        return kTau, sRho, f1
 
     def validation_epoch_end(self, outs):
         outs = torch.tensor(outs)
-        
+
         kTau = outs[:,0].mean()
         sRho = outs[:,1].mean()
+        f1 = outs[:,2].mean()
 
         self.log('val_kTau', kTau, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_sRho', sRho, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('val_f1', f1, on_step=False, on_epoch=True, prog_bar=True)
 
         torch.cuda.empty_cache()
 
     def test_step(self, val_batch, batch_idx):
         x1 = val_batch['llama_embedding_userprompt'].squeeze(0)
         x2 = val_batch['llama_embedding_generation'].squeeze(0)
-        
-        x = torch.cat((x1, x2), dim=1)  
+
+        x_text = torch.cat((x1, x2), dim=1)
+        x_audio = val_batch['audio_features'].squeeze(0)
+        x_visual = val_batch['visual_features'].squeeze(0)
         y = val_batch['gtscore'].squeeze(0)
         mask = val_batch['mask']
 
-        score = self.forward(x, mask=mask).squeeze(1).unsqueeze(0)
-        del x, mask
+        score = self.forward(x_text, x_audio, x_visual, mask=mask).squeeze(1).unsqueeze(0)
+        del x_text, x_audio, x_visual, mask
         score = score.clamp(0.0, 1.0)
 
         score = score.squeeze()
@@ -141,19 +164,21 @@ class LLMVS(pl.LightningModule):
         picks = val_batch['picks'][0]
         machine_summary = generate_summary(score, cps, n_frames, nfps, picks)
 
-        kTau, sRho = evaluate_summary(machine_summary, gt_summary, video_name, score, eval_data=self.config.dataset)
+        kTau, sRho, f1 = evaluate_summary(machine_summary, gt_summary, video_name, score, eval_data=self.config.dataset)
 
 
-        return kTau, sRho
-    
+        return kTau, sRho, f1
+
     def test_epoch_end(self, outs):
         outs = torch.tensor(outs)
 
         kTau = outs[:,0].mean()
         sRho = outs[:,1].mean()
+        f1 = outs[:,2].mean()
 
         self.log('val_kTau', kTau, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_sRho', sRho, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('val_f1', f1, on_step=False, on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self):        
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.config.lr)

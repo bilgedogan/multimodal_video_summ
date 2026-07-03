@@ -1,59 +1,100 @@
 import os
 import argparse
 import glob
-import re
+import numpy as np
+from torch.utils.data import DataLoader
 from pytorch_lightning import Trainer, seed_everything
 seed_everything(1112)
+
+from utils.configs import Config
+from networks.model import LLMVS
+
 parser = argparse.ArgumentParser("check llama score")
 parser.add_argument('--dataset', type=str, default='summe')
-parser.add_argument('--weights', default='best_f1score_model', type=str, help='Path to weights')
-parser.add_argument('--result_dir', default='Summaries/llama_finetuning/summe/', type=str)
-parser.add_argument('--pt_path', type=str, default='llama_emb/summe_sum/0224_partial_7window_note_emb_slicing_fp16_sep/')
+parser.add_argument('--weights', default='rho', type=str, help="'rho' or 'tau', selects which checkpoint to test")
+parser.add_argument('--exp_name', type=str, default='exp_1', help='experiment name used at train time')
+parser.add_argument('--result_dir', default='Summaries/', type=str)
+parser.add_argument('--pt_path', type=str, default='llama_emb/summe_sum/')
+parser.add_argument('--audio_path', type=str, default=None)
+parser.add_argument('--visual_path', type=str, default=None)
+parser.add_argument('--audio_dim', type=int, default=512)
+parser.add_argument('--visual_dim', type=int, default=1024)
 parser.add_argument('--reduced_dim', type=int, default=2048)
 parser.add_argument('--num_heads', type=int, default=2)
 parser.add_argument('--num_layers', type=int, default=3)
-
+parser.add_argument('--model', type=str, default='llmvs')
 
 args = parser.parse_args()
-args.model = args.result_dir.replace('Summaries/', '')
-val_kTau = []
-val_sRho = []
 
+ckpt_dirname = 'best_rho_model' if 'rho' in args.weights else 'best_tau_model'
 
-if 'rho' in args.weights:
-    weights = sorted(glob.glob('Summaries/{}/{}/*/best_rho_model/epoch=*'.format(args.model, args.dataset)))
-    if os.path.isfile('{}/{}/best_rho_results.txt'.format(args.result_dir, args.dataset)):
-        os.remove('{}/{}/best_rho_results.txt'.format(args.result_dir, args.dataset))
-    file_name = '{}/{}/best_rho_results.txt'.format(args.result_dir, args.dataset)
+tags = sorted(glob.glob('Summaries/{}/{}/*'.format(args.exp_name, args.dataset)))
+tags = [t.split('/')[-1] for t in tags if os.path.isdir(t)]
 
-if 'tau' in args.weights:
-    weights = sorted(glob.glob('Summaries/{}/{}/*/best_tau_model/epoch=*'.format(args.model, args.dataset)))
-    if os.path.isfile('{}/{}/best_tau_results.txt'.format(args.result_dir, args.dataset)):
-        os.remove('{}/{}/best_tau_results.txt'.format(args.result_dir, args.dataset))
-    file_name = '{}/{}/best_tau_results.txt'.format(args.result_dir, args.dataset)
+if args.dataset == 'summe':
+    from utils.summe_dataset import SumMeLLaMADataset as Dataset, ValBatchCollator
+    default_audio_path = 'audio_features/summe_whisper.h5'
+    default_visual_path = 'clip_features/summe_clip.h5'
+else:
+    from utils.tvsum_dataset import TVSumLLaMADataset as Dataset, ValBatchCollator
+    default_audio_path = 'audio_features/tvsum_whisper.h5'
+    default_visual_path = 'clip_features/tvsum_clip.h5'
 
-tags =sorted(glob.glob('Summaries/{}/{}/*'.format(args.model, args.dataset)))
-tags = [a.split('/')[-1] for a in tags if os.path.isdir(a)]
+audio_path = args.audio_path or default_audio_path
+visual_path = args.visual_path or default_visual_path
 
-for i in range(0,5):
-    os.system("python test.py --model {} --dataset {} --tag {} --reduced_dim {} --split_idx {} --weights {} --result_dir {} \
-        --pt_path {} --num_heads {} --num_layers {} >> {}".format(args.model, args.dataset, tags[i], args.reduced_dim, i, weights[i], args.result_dir, args.pt_path, args.num_heads, args.num_layers, file_name))
+kTau_scores, sRho_scores, f1_scores = [], [], []
+per_split_rows = []
 
-file1 = open(file_name, 'r')
+for split_idx, tag in enumerate(tags[:5]):
+    ckpt_glob = sorted(glob.glob('Summaries/{}/{}/{}/{}/epoch=*'.format(args.exp_name, args.dataset, tag, ckpt_dirname)))
+    if not ckpt_glob:
+        print('No checkpoint found for split {} ({}), skipping'.format(split_idx, tag))
+        continue
+    weights_path = ckpt_glob[0]
 
-Lines = file1.readlines()
+    config = Config(model=args.model, dataset=args.dataset, split_idx=split_idx, epochs=1,
+                     reduced_dim=args.reduced_dim, num_heads=args.num_heads, num_layers=args.num_layers,
+                     tag=tag, pt_path=args.pt_path, audio_path=args.audio_path, visual_path=args.visual_path,
+                     audio_dim=args.audio_dim, visual_dim=args.visual_dim, exp_name=args.exp_name,
+                     weights=weights_path)
 
-for line in Lines:
-    if 'val_kTau' in line and 'val_sRho' in line:
-        import ast
-        result_dict = ast.literal_eval(line.strip())
-        val_kTau.append(float(result_dict['val_kTau']))
-        val_sRho.append(float(result_dict['val_sRho']))
+    test_dataset = Dataset(mode='test', split_idx=split_idx, llama_embedding=config.pt_path,
+                            audio_path=audio_path, visual_path=visual_path)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
+                              collate_fn=ValBatchCollator(), pin_memory=True)
 
-print('{:.3f}'.format(sum(val_kTau)/len(val_kTau)))
-print('{:.3f}'.format(sum(val_sRho)/len(val_sRho)))
+    model = LLMVS.load_from_checkpoint(weights_path, config=config)
+    model.cuda()
+    model.eval()
 
-with open(file_name, 'a') as f:
-    f.write('{:.3f}'.format(sum(val_kTau)/len(val_kTau)))
+    trainer = Trainer(gpus=1, precision=16, benchmark=True, deterministic=False, logger=False,
+                       progress_bar_refresh_rate=0)
+    results = trainer.test(model, test_loader, ckpt_path=weights_path, verbose=False)[0]
+
+    kTau_scores.append(results['val_kTau'])
+    sRho_scores.append(results['val_sRho'])
+    f1_scores.append(results['val_f1'])
+    per_split_rows.append('{}: kTau={:.3f} sRho={:.3f} f1={:.3f}'.format(
+        tag, results['val_kTau'], results['val_sRho'], results['val_f1']))
+    print(per_split_rows[-1])
+
+kTau_scores = np.array(kTau_scores)
+sRho_scores = np.array(sRho_scores)
+f1_scores = np.array(f1_scores)
+
+summary_lines = [
+    'kTau: {:.3f} +/- {:.3f}'.format(kTau_scores.mean(), kTau_scores.std()),
+    'sRho: {:.3f} +/- {:.3f}'.format(sRho_scores.mean(), sRho_scores.std()),
+    'f1:   {:.3f} +/- {:.3f}'.format(f1_scores.mean(), f1_scores.std()),
+]
+for line in summary_lines:
+    print(line)
+
+os.makedirs(os.path.join(args.result_dir,args.exp_name), exist_ok=True)
+result_file = os.path.join(os.path.join(args.result_dir,args.exp_name), '{}_{}_results.txt'.format(args.dataset, args.weights))
+with open(result_file, 'w') as f:
+    f.write('\n'.join(per_split_rows))
     f.write('\n')
-    f.write('{:.3f}'.format(sum(val_sRho)/len(val_sRho)))
+    f.write('\n'.join(summary_lines))
+    f.write('\n')
