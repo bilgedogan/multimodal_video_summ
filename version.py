@@ -1,6 +1,17 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 04.07.2026                                  *
+* Version: 1.1.1                                    *
+* Branch: main                                      *
+* Development:                                      *
+* - Global rl weighting added                       *
+* - Config parameter fusion_type added              *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 03.07.2026                                  *
 * Version: 1.1.0                                    *
 * Branch: main                                      *

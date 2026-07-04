@@ -9,6 +9,7 @@ from pytorch_lightning import seed_everything
 import pdb
 import numpy as np
 import torch.nn.functional as F
+from scipy import stats
 from matplotlib import pyplot as plt
 seed_everything(1112)
 
@@ -27,7 +28,11 @@ class LLMVS(pl.LightningModule):
         self.v_linear1 = nn.Linear(self.config.visual_dim, self.config.reduced_dim)
         self.v_linear1_norm = nn.LayerNorm(self.config.reduced_dim)
 
-        self.modality_weights = nn.Parameter(torch.ones(3))
+        if self.config.fusion_type == 'global_rl':
+            self.modality_alpha_raw = nn.Parameter(torch.zeros(3))
+            self.register_buffer('reward_baseline', torch.zeros(1))
+        else:
+            self.modality_weights = nn.Parameter(torch.ones(3))
 
         encoder_layer_agg = nn.TransformerEncoderLayer(d_model = self.config.reduced_dim, nhead = self.config.num_heads, batch_first = True)
         self.transformer_encoder_agg = nn.TransformerEncoder(encoder_layer_agg, num_layers=self.config.num_layers)
@@ -68,7 +73,19 @@ class LLMVS(pl.LightningModule):
         x_visual = self.v_linear1(x_visual)
         x_visual = self.v_linear1_norm(x_visual)
 
-        w = torch.softmax(self.modality_weights, dim=0)
+        if self.config.fusion_type == 'global_rl':
+            alpha = F.softplus(self.modality_alpha_raw) + 1e-3
+            alpha = alpha.clamp(0.1, 20)
+            dist = torch.distributions.Dirichlet(alpha)
+            if self.training:
+                w = dist.rsample()
+                self._fusion_log_prob = dist.log_prob(w)
+            else:
+                w = alpha / alpha.sum()
+                self._fusion_log_prob = None
+        else:
+            w = torch.softmax(self.modality_weights, dim=0)
+
         x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
         x = x.unsqueeze(0)
 
@@ -93,6 +110,21 @@ class LLMVS(pl.LightningModule):
         score = score.clamp(0.0, 1.0)
 
         loss = self.criterion(score, y).mean()
+
+        if self.config.fusion_type == 'global_rl':
+            pred_rank = stats.rankdata(-score.detach().squeeze().cpu().numpy())
+            gt_rank = stats.rankdata(-y.detach().squeeze().cpu().numpy())
+            tau = stats.kendalltau(pred_rank, gt_rank)[0]
+            reward = torch.tensor(0.0 if np.isnan(tau) else tau, device=score.device)
+
+            self.reward_baseline = self.config.baseline_momentum * self.reward_baseline + (1 - self.config.baseline_momentum) * reward
+            advantage = reward - self.reward_baseline
+
+            policy_loss = -self._fusion_log_prob * advantage.detach()
+            loss = loss + self.config.rl_weight * policy_loss
+
+            self.log('reward_tau', reward, on_step=True, on_epoch=True, batch_size=1)
+            self.log('policy_loss', policy_loss, on_step=True, on_epoch=True, batch_size=1)
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size = 1)
 

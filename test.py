@@ -29,6 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('--audio_dim', type=int, default=512)
     parser.add_argument('--visual_dim', type=int, default=1024)
     parser.add_argument('--exp_name', type=str, default='exp_default')
+    parser.add_argument('--fusion_type', type=str, default='global_weight', choices=['global_weight', 'global_rl'], help='the type of fusion used by the checkpoint being tested')
 
     opt = parser.parse_args()
     kwargs = vars(opt)

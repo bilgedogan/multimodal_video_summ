@@ -23,6 +23,7 @@ parser.add_argument('--reduced_dim', type=int, default=2048)
 parser.add_argument('--num_heads', type=int, default=2)
 parser.add_argument('--num_layers', type=int, default=3)
 parser.add_argument('--model', type=str, default='llmvs')
+parser.add_argument('--fusion_type', type=str, default='global_weight', choices=['global_weight', 'global_rl'], help='the type of fusion used by the checkpoints being tested')
 
 args = parser.parse_args()
 
@@ -57,7 +58,7 @@ for split_idx, tag in enumerate(tags[:5]):
                      reduced_dim=args.reduced_dim, num_heads=args.num_heads, num_layers=args.num_layers,
                      tag=tag, pt_path=args.pt_path, audio_path=args.audio_path, visual_path=args.visual_path,
                      audio_dim=args.audio_dim, visual_dim=args.visual_dim, exp_name=args.exp_name,
-                     weights=weights_path)
+                     weights=weights_path, fusion_type=args.fusion_type)
 
     test_dataset = Dataset(mode='test', split_idx=split_idx, llama_embedding=config.pt_path,
                             audio_path=audio_path, visual_path=visual_path)
