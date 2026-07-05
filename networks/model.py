@@ -31,6 +31,13 @@ class LLMVS(pl.LightningModule):
         if self.config.fusion_type == 'global_rl':
             self.modality_alpha_raw = nn.Parameter(torch.zeros(3))
             self.register_buffer('reward_baseline', torch.zeros(1))
+        elif self.config.fusion_type in ('local_weight', 'local_rl'):
+            self.wg_text = nn.Linear(self.config.reduced_dim, self.config.weight_gen_dim)
+            self.wg_audio = nn.Linear(self.config.reduced_dim, self.config.weight_gen_dim)
+            self.wg_visual = nn.Linear(self.config.reduced_dim, self.config.weight_gen_dim)
+            self.frame_weight_gen = nn.Linear(self.config.weight_gen_dim * 3, 3)
+            if self.config.fusion_type == 'local_rl':
+                self.register_buffer('reward_baseline', torch.zeros(1))
         else:
             self.modality_weights = nn.Parameter(torch.ones(3))
 
@@ -83,10 +90,31 @@ class LLMVS(pl.LightningModule):
             else:
                 w = alpha / alpha.sum()
                 self._fusion_log_prob = None
+            x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
+        elif self.config.fusion_type in ('local_weight', 'local_rl'):
+            wt = F.relu(self.wg_text(x_text))
+            wa = F.relu(self.wg_audio(x_audio))
+            wv = F.relu(self.wg_visual(x_visual))
+            raw = self.frame_weight_gen(torch.cat((wt, wa, wv), dim=-1))
+
+            if self.config.fusion_type == 'local_rl':
+                alpha = F.softplus(raw) + 1e-3
+                alpha = alpha.clamp(0.1, 20)
+                dist = torch.distributions.Dirichlet(alpha)
+                if self.training:
+                    w = dist.rsample()
+                    self._fusion_log_prob = dist.log_prob(w)
+                else:
+                    w = alpha / alpha.sum(dim=-1, keepdim=True)
+                    self._fusion_log_prob = None
+            else:
+                w = torch.softmax(raw, dim=-1)
+
+            x = w[:, 0:1] * x_text + w[:, 1:2] * x_audio + w[:, 2:3] * x_visual
         else:
             w = torch.softmax(self.modality_weights, dim=0)
+            x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
 
-        x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
         x = x.unsqueeze(0)
 
         x = self.transformer_encoder_agg(x)
@@ -111,7 +139,7 @@ class LLMVS(pl.LightningModule):
 
         loss = self.criterion(score, y).mean()
 
-        if self.config.fusion_type == 'global_rl':
+        if self.config.fusion_type in ('global_rl', 'local_rl'):
             pred_rank = stats.rankdata(-score.detach().squeeze().cpu().numpy())
             gt_rank = stats.rankdata(-y.detach().squeeze().cpu().numpy())
             tau = stats.kendalltau(pred_rank, gt_rank)[0]
@@ -120,7 +148,8 @@ class LLMVS(pl.LightningModule):
             self.reward_baseline = self.config.baseline_momentum * self.reward_baseline + (1 - self.config.baseline_momentum) * reward
             advantage = reward - self.reward_baseline
 
-            policy_loss = -self._fusion_log_prob * advantage.detach()
+            log_prob = self._fusion_log_prob.mean() if self._fusion_log_prob.dim() > 0 else self._fusion_log_prob
+            policy_loss = -log_prob * advantage.detach()
             loss = loss + self.config.rl_weight * policy_loss
 
             self.log('reward_tau', reward, on_step=True, on_epoch=True, batch_size=1)

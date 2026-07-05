@@ -1,6 +1,16 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 05.07.2026                                  *
+* Version: 1.1.2                                    *
+* Branch: main                                      *
+* Development:                                      *
+* - Local weight for each frame and rl implemented  *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 04.07.2026                                  *
 * Version: 1.1.1                                    *
 * Branch: main                                      *
