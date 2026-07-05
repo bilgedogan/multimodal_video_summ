@@ -80,6 +80,8 @@ if __name__ == '__main__':
     mode='max',
     )
 
+    tb_logger = TensorBoardLogger(save_dir=config.save_dir_root, name='', version='')
+
     trainer = Trainer(
                     gpus=1,
                     max_epochs=opt.epochs,
@@ -87,6 +89,7 @@ if __name__ == '__main__':
                     precision=16,
                     gradient_clip_val=0.01,
                     callbacks=[checkpoint_callback_rho, checkpoint_callback_tau],
+                    logger=tb_logger,
                     benchmark=True,
                     deterministic=False,
                     val_check_interval=0.5,

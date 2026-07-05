@@ -2,6 +2,17 @@
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
 * Date: 05.07.2026                                  *
+* Version: 1.1.3                                    *
+* Branch: main                                      *
+* Development:                                      *
+* - Tensorboard logger added                        *
+* - Visualization script added                      *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
+* Date: 05.07.2026                                  *
 * Version: 1.1.2                                    *
 * Branch: main                                      *
 * Development:                                      *

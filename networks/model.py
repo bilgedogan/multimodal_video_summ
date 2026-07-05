@@ -115,12 +115,29 @@ class LLMVS(pl.LightningModule):
             w = torch.softmax(self.modality_weights, dim=0)
             x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
 
+        self._last_w = w.detach()
         x = x.unsqueeze(0)
 
         x = self.transformer_encoder_agg(x)
         x = self.mlp_head(x.squeeze(0))
 
         return  x
+
+    def _log_fusion_weights(self, stage):
+        w = self._last_w
+        if w.dim() == 1:
+            w_text, w_audio, w_visual = w[0], w[1], w[2]
+        else:
+            w_mean = w.mean(dim=0)
+            w_text, w_audio, w_visual = w_mean[0], w_mean[1], w_mean[2]
+            if stage == 'val' and self.logger is not None:
+                self.logger.experiment.add_histogram(f'{stage}_w_text_hist', w[:, 0], self.global_step)
+                self.logger.experiment.add_histogram(f'{stage}_w_audio_hist', w[:, 1], self.global_step)
+                self.logger.experiment.add_histogram(f'{stage}_w_visual_hist', w[:, 2], self.global_step)
+
+        self.log(f'{stage}_w_text', w_text, on_step=(stage == 'train'), on_epoch=True, batch_size=1)
+        self.log(f'{stage}_w_audio', w_audio, on_step=(stage == 'train'), on_epoch=True, batch_size=1)
+        self.log(f'{stage}_w_visual', w_visual, on_step=(stage == 'train'), on_epoch=True, batch_size=1)
 
     def training_step(self, train_batch, batch_idx):
         x1 = train_batch['llama_embedding_userprompt'].squeeze(0)
@@ -156,6 +173,7 @@ class LLMVS(pl.LightningModule):
             self.log('policy_loss', policy_loss, on_step=True, on_epoch=True, batch_size=1)
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size = 1)
+        self._log_fusion_weights('train')
 
         torch.cuda.empty_cache()
         return loss
@@ -172,6 +190,7 @@ class LLMVS(pl.LightningModule):
         score = self.forward(x_text, x_audio, x_visual, mask=mask).squeeze(1).unsqueeze(0)
         del x_text, x_audio, x_visual, mask
         score = score.clamp(0.0, 1.0)
+        self._log_fusion_weights('val')
 
         score = score.squeeze()
         gt_summary = val_batch['gt_summary'][0]
