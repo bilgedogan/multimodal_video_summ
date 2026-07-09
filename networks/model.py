@@ -5,13 +5,11 @@ from einops import repeat
 import pytorch_lightning as pl
 from utils.evaluation_metrics import evaluate_summary
 from utils.generate_summary import generate_summary
-from pytorch_lightning import seed_everything
 import pdb
 import numpy as np
 import torch.nn.functional as F
 from scipy import stats
 from matplotlib import pyplot as plt
-seed_everything(1112)
 
 class LLMVS(pl.LightningModule):
     def __init__(self, config):

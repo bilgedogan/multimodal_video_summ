@@ -15,7 +15,10 @@ import os
 import re
 
 import matplotlib.pyplot as plt
+import wandb
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+from utils.configs import str2bool
 
 METRICS = [
     'train_loss_epoch',
@@ -66,6 +69,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logdir', type=str, default='Summaries', help='root dir to search for runs')
     parser.add_argument('--out', type=str, default='compare.png', help='output png path')
+    parser.add_argument('--wandb', type=str2bool, default=True, help='log the comparison plot to wandb')
+    parser.add_argument('--wandb_project', type=str, default='multimodal-video-summ')
     args = parser.parse_args()
 
     run_dirs = find_runs(args.logdir)
@@ -102,6 +107,14 @@ def main():
     print(f'saved {args.out} ({len(run_dirs)} runs found)')
     for run_dir in run_dirs:
         print(f'  - {run_label(run_dir)}  <- {run_dir}')
+
+    if args.wandb:
+        run = wandb.init(project=args.wandb_project, job_type='visualize', name=os.path.basename(args.out))
+        run.log({'comparison': wandb.Image(args.out)})
+        artifact = wandb.Artifact('comparison-plot', type='visualization')
+        artifact.add_file(args.out)
+        run.log_artifact(artifact)
+        run.finish()
 
 
 if __name__ == '__main__':

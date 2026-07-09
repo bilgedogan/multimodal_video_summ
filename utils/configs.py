@@ -35,7 +35,8 @@ class Config(object):
         """ Function that sets as class attributes the necessary directories for logging important training information.
         """
 
-        self.save_dir_root = f'Summaries/{self.exp_name}/{self.dataset}/{self.tag}'
+        seed = getattr(self, 'seed', 1112)
+        self.save_dir_root = f'Summaries/{self.exp_name}/seed_{seed}/{self.dataset}/{self.tag}'
         os.makedirs(self.save_dir_root, exist_ok = True)
 
         f = open(os.path.join(self.save_dir_root, 'configuration.txt'), 'w')

@@ -2,17 +2,18 @@ import os
 import argparse
 import glob
 import numpy as np
+import wandb
 from torch.utils.data import DataLoader
 from pytorch_lightning import Trainer, seed_everything
-seed_everything(1112)
 
-from utils.configs import Config
+from utils.configs import Config, str2bool
 from networks.model import LLMVS
 
 parser = argparse.ArgumentParser("check llama score")
 parser.add_argument('--dataset', type=str, default='summe')
 parser.add_argument('--weights', default='rho', type=str, help="'rho' or 'tau', selects which checkpoint to test")
 parser.add_argument('--exp_name', type=str, default='exp_1', help='experiment name used at train time')
+parser.add_argument('--seed', type=int, default=1112, help='seed used at train time (selects Summaries/<exp>/seed_<seed>/...)')
 parser.add_argument('--result_dir', default='Summaries/', type=str)
 parser.add_argument('--pt_path', type=str, default='llama_emb/summe_sum/')
 parser.add_argument('--audio_path', type=str, default=None)
@@ -27,12 +28,23 @@ parser.add_argument('--fusion_type', type=str, default='global_weight', choices=
 parser.add_argument('--rl_weight', type=float, default=0.1, help='weight of the REINFORCE policy loss when fusion_type=global_rl/local_rl')
 parser.add_argument('--baseline_momentum', type=float, default=0.9, help='EMA momentum for the REINFORCE reward baseline')
 parser.add_argument('--weight_gen_dim', type=int, default=256, help='per-modality compression dim before the per-frame weight generator (fusion_type=local_weight/local_rl)')
+parser.add_argument('--wandb', type=str2bool, default=True, help='log eval results to wandb')
+parser.add_argument('--wandb_ckpt', type=str2bool, default=False, help='also upload checkpoints as a wandb artifact (large, counts against storage quota)')
+parser.add_argument('--wandb_project', type=str, default='multimodal-video-summ')
 
 args = parser.parse_args()
+seed_everything(args.seed)
+
+if args.wandb:
+    wandb_run = wandb.init(project=args.wandb_project, group=args.exp_name, job_type='eval',
+                            name=f'{args.exp_name}_seed{args.seed}_{args.dataset}_{args.weights}', config=vars(args))
+    if args.wandb_ckpt:
+        ckpt_artifact = wandb.Artifact(f'{args.exp_name}-seed{args.seed}-{args.dataset}-{args.weights}-checkpoints', type='model')
 
 ckpt_dirname = 'best_rho_model' if 'rho' in args.weights else 'best_tau_model'
 
-tags = sorted(glob.glob('Summaries/{}/{}/*'.format(args.exp_name, args.dataset)))
+exp_dataset_root = 'Summaries/{}/seed_{}/{}'.format(args.exp_name, args.seed, args.dataset)
+tags = sorted(glob.glob('{}/*'.format(exp_dataset_root)))
 tags = [t.split('/')[-1] for t in tags if os.path.isdir(t)]
 
 if args.dataset == 'summe':
@@ -51,7 +63,7 @@ kTau_scores, sRho_scores, f1_scores = [], [], []
 per_split_rows = []
 
 for split_idx, tag in enumerate(tags[:5]):
-    ckpt_glob = sorted(glob.glob('Summaries/{}/{}/{}/{}/epoch=*'.format(args.exp_name, args.dataset, tag, ckpt_dirname)))
+    ckpt_glob = sorted(glob.glob('{}/{}/{}/epoch=*'.format(exp_dataset_root, tag, ckpt_dirname)))
     if not ckpt_glob:
         print('No checkpoint found for split {} ({}), skipping'.format(split_idx, tag))
         continue
@@ -59,7 +71,7 @@ for split_idx, tag in enumerate(tags[:5]):
 
     config = Config(model=args.model, dataset=args.dataset, split_idx=split_idx, epochs=1,
                      reduced_dim=args.reduced_dim, num_heads=args.num_heads, num_layers=args.num_layers,
-                     tag=tag, pt_path=args.pt_path, audio_path=args.audio_path, visual_path=args.visual_path,
+                     tag=tag, seed=args.seed, pt_path=args.pt_path, audio_path=args.audio_path, visual_path=args.visual_path,
                      audio_dim=args.audio_dim, visual_dim=args.visual_dim, exp_name=args.exp_name,
                      weights=weights_path, fusion_type=args.fusion_type, weight_gen_dim=args.weight_gen_dim,
                      rl_weight=args.rl_weight, baseline_momentum=args.baseline_momentum)
@@ -84,6 +96,9 @@ for split_idx, tag in enumerate(tags[:5]):
         tag, results['val_kTau'], results['val_sRho'], results['val_f1']))
     print(per_split_rows[-1])
 
+    if args.wandb and args.wandb_ckpt:
+        ckpt_artifact.add_file(weights_path, name=f'{tag}/{os.path.basename(weights_path)}')
+
 kTau_scores = np.array(kTau_scores)
 sRho_scores = np.array(sRho_scores)
 f1_scores = np.array(f1_scores)
@@ -96,10 +111,30 @@ summary_lines = [
 for line in summary_lines:
     print(line)
 
-os.makedirs(os.path.join(args.result_dir,args.exp_name), exist_ok=True)
-result_file = os.path.join(os.path.join(args.result_dir,args.exp_name), '{}_{}_results.txt'.format(args.dataset, args.weights))
+result_dir = os.path.join(args.result_dir, args.exp_name, 'seed_{}'.format(args.seed))
+os.makedirs(result_dir, exist_ok=True)
+result_file = os.path.join(result_dir, '{}_{}_results.txt'.format(args.dataset, args.weights))
 with open(result_file, 'w') as f:
     f.write('\n'.join(per_split_rows))
     f.write('\n')
     f.write('\n'.join(summary_lines))
     f.write('\n')
+
+if args.wandb:
+    table = wandb.Table(columns=['split', 'kTau', 'sRho', 'f1'])
+    for tag, k, s, f1 in zip(tags, kTau_scores, sRho_scores, f1_scores):
+        table.add_data(tag, float(k), float(s), float(f1))
+
+    wandb_run.log({
+        'per_split_results': table,
+        'kTau_mean': kTau_scores.mean(), 'kTau_std': kTau_scores.std(),
+        'sRho_mean': sRho_scores.mean(), 'sRho_std': sRho_scores.std(),
+        'f1_mean': f1_scores.mean(), 'f1_std': f1_scores.std(),
+    })
+
+    results_artifact = wandb.Artifact(f'{args.exp_name}-seed{args.seed}-{args.dataset}-{args.weights}-results', type='results')
+    results_artifact.add_file(result_file)
+    wandb_run.log_artifact(results_artifact)
+    if args.wandb_ckpt:
+        wandb_run.log_artifact(ckpt_artifact)
+    wandb_run.finish()

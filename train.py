@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 ######################################## Pytorch lightning ########################################################
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer, seed_everything
-seed_everything(1112)
 from pytorch_lightning.loggers import TensorBoardLogger
 from networks.model import LLMVS
 
@@ -17,6 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', type = str, default = 'summe_head2_layer3', help = 'the name of the model')
     parser.add_argument('--dataset', type = str, default = 'summe', help = 'the name of the dataset')
     parser.add_argument('--split_idx', type = int, default = 0, help = 'the split index')
+    parser.add_argument('--seed', type = int, default = 1112, help = 'random seed for seed_everything')
     parser.add_argument('--epochs', type = int, default = 200, help = 'the number of training epochs')
     parser.add_argument('--reduced_dim', type = int, default = 2048)
     parser.add_argument('--num_heads', type = int, default = 2)
@@ -36,6 +36,7 @@ if __name__ == '__main__':
 
 
     opt = parser.parse_args()
+    seed_everything(opt.seed)
     kwargs = vars(opt)
     config = Config(**kwargs)
 

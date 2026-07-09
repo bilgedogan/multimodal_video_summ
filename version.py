@@ -2,6 +2,17 @@
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
 * Date: 09.07.2026                                  *
+* Version: 1.1.5                                    *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Wandb setup added.                              *
+* - Seed sweep added.                               *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
+* Date: 09.07.2026                                  *
 * Version: 1.1.4                                    *
 * Branch: main                                      *
 * Development:                                      *
