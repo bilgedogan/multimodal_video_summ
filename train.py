@@ -67,8 +67,9 @@ if __name__ == '__main__':
     dirpath= best_rho_model,
     filename='{epoch:02d}-{val_sRho:.3f}',
     save_top_k=1,
-    save_last=True,
+    save_last=False, #yerden tasaruf için False yap
     mode='max',
+    save_weights_only=True,   # model sadece ağırlıkları kaydeder
     )
 
     checkpoint_callback_tau = ModelCheckpoint(
@@ -76,8 +77,9 @@ if __name__ == '__main__':
     dirpath= best_tau_model,
     filename='{epoch:02d}-{val_kTau:.3f}',
     save_top_k=1,
-    save_last=True,
+    save_last=False, # yerden tasaruf için False yap
     mode='max',
+    save_weights_only=True,   # model sadece ağırlıkları kaydeder
     )
 
     tb_logger = TensorBoardLogger(save_dir=config.save_dir_root, name='', version='')

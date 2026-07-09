@@ -1,6 +1,17 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 09.07.2026                                  *
+* Version: 1.1.4                                    *
+* Branch: main                                      *
+* Development:                                      *
+* - Argument bugs fixed.                            *
+* - Alpha clamp changed.                            *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 05.07.2026                                  *
 * Version: 1.1.3                                    *
 * Branch: main                                      *

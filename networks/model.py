@@ -98,8 +98,7 @@ class LLMVS(pl.LightningModule):
             raw = self.frame_weight_gen(torch.cat((wt, wa, wv), dim=-1))
 
             if self.config.fusion_type == 'local_rl':
-                alpha = F.softplus(raw) + 1e-3
-                alpha = alpha.clamp(0.1, 20)
+                alpha = F.softplus(raw) + 1
                 dist = torch.distributions.Dirichlet(alpha)
                 if self.training:
                     w = dist.rsample()
