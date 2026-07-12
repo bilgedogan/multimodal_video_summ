@@ -30,13 +30,14 @@ parser.add_argument('--baseline_momentum', type=float, default=0.9, help='EMA mo
 parser.add_argument('--weight_gen_dim', type=int, default=256, help='per-modality compression dim before the per-frame weight generator (fusion_type=local_weight/local_rl)')
 parser.add_argument('--wandb', type=str2bool, default=True, help='log eval results to wandb')
 parser.add_argument('--wandb_ckpt', type=str2bool, default=False, help='also upload checkpoints as a wandb artifact (large, counts against storage quota)')
-parser.add_argument('--wandb_project', type=str, default='multimodal-video-summ')
+parser.add_argument('--wandb_entity', type=str, default='dogann19-istanbul-technical-university')
+parser.add_argument('--wandb_project', type=str, default='Video_Summ_3_Modal')
 
 args = parser.parse_args()
 seed_everything(args.seed)
 
 if args.wandb:
-    wandb_run = wandb.init(project=args.wandb_project, group=args.exp_name, job_type='eval',
+    wandb_run = wandb.init(entity=args.wandb_entity, project=args.wandb_project, group=args.exp_name, job_type='eval',
                             name=f'{args.exp_name}_seed{args.seed}_{args.dataset}_{args.weights}', config=vars(args))
     if args.wandb_ckpt:
         ckpt_artifact = wandb.Artifact(f'{args.exp_name}-seed{args.seed}-{args.dataset}-{args.weights}-checkpoints', type='model')

@@ -79,8 +79,8 @@ class LLMVS(pl.LightningModule):
         x_visual = self.v_linear1_norm(x_visual)
 
         if self.config.fusion_type == 'global_rl':
-            alpha = F.softplus(self.modality_alpha_raw) + 1e-3
-            alpha = alpha.clamp(0.1, 20)
+            alpha = F.softplus(self.modality_alpha_raw) + 1
+            # alpha = alpha.clamp(0.1, 20)
             dist = torch.distributions.Dirichlet(alpha)
             if self.training:
                 w = dist.rsample()

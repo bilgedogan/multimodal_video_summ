@@ -1,6 +1,16 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 12.07.2026                                  *
+* Version: 1.1.6                                    *
+* Branch: multimodal                                *
+* Development:                                      *
+* - New data embeddings are created.                *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 09.07.2026                                  *
 * Version: 1.1.5                                    *
 * Branch: multimodal                                *

@@ -70,7 +70,8 @@ def main():
     parser.add_argument('--logdir', type=str, default='Summaries', help='root dir to search for runs')
     parser.add_argument('--out', type=str, default='compare.png', help='output png path')
     parser.add_argument('--wandb', type=str2bool, default=True, help='log the comparison plot to wandb')
-    parser.add_argument('--wandb_project', type=str, default='multimodal-video-summ')
+    parser.add_argument('--wandb_entity', type=str, default='dogann19-istanbul-technical-university')
+    parser.add_argument('--wandb_project', type=str, default='Video_Summ_3_Modal')
     args = parser.parse_args()
 
     run_dirs = find_runs(args.logdir)
@@ -109,7 +110,7 @@ def main():
         print(f'  - {run_label(run_dir)}  <- {run_dir}')
 
     if args.wandb:
-        run = wandb.init(project=args.wandb_project, job_type='visualize', name=os.path.basename(args.out))
+        run = wandb.init(entity=args.wandb_entity, project=args.wandb_project, job_type='visualize', name=os.path.basename(args.out))
         run.log({'comparison': wandb.Image(args.out)})
         artifact = wandb.Artifact('comparison-plot', type='visualization')
         artifact.add_file(args.out)
