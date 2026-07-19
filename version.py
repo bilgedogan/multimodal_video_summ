@@ -1,6 +1,16 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 19.07.2026                                  *
+* Version: 1.1.7                                    *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Multisedd training with new embeddings          *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 12.07.2026                                  *
 * Version: 1.1.6                                    *
 * Branch: multimodal                                *

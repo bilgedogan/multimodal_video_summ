@@ -8,6 +8,7 @@ from pytorch_lightning import Trainer, seed_everything
 
 from utils.configs import Config, str2bool
 from networks.model import LLMVS
+from visualize import make_comparison_plot
 
 parser = argparse.ArgumentParser("check llama score")
 parser.add_argument('--dataset', type=str, default='summe')
@@ -18,8 +19,8 @@ parser.add_argument('--result_dir', default='Summaries/', type=str)
 parser.add_argument('--pt_path', type=str, default='llama_emb/summe_sum/')
 parser.add_argument('--audio_path', type=str, default=None)
 parser.add_argument('--visual_path', type=str, default=None)
-parser.add_argument('--audio_dim', type=int, default=512)
-parser.add_argument('--visual_dim', type=int, default=1024)
+parser.add_argument('--audio_dim', type=int, default=2048)
+parser.add_argument('--visual_dim', type=int, default=768)
 parser.add_argument('--reduced_dim', type=int, default=2048)
 parser.add_argument('--num_heads', type=int, default=2)
 parser.add_argument('--num_layers', type=int, default=3)
@@ -37,7 +38,7 @@ args = parser.parse_args()
 seed_everything(args.seed)
 
 if args.wandb:
-    wandb_run = wandb.init(entity=args.wandb_entity, project=args.wandb_project, group=args.exp_name, job_type='eval',
+    wandb_run = wandb.init(entity=args.wandb_entity, project=args.wandb_project, group=f'{args.exp_name}_{args.dataset}', job_type='eval',
                             name=f'{args.exp_name}_seed{args.seed}_{args.dataset}_{args.weights}', config=vars(args))
     if args.wandb_ckpt:
         ckpt_artifact = wandb.Artifact(f'{args.exp_name}-seed{args.seed}-{args.dataset}-{args.weights}-checkpoints', type='model')
@@ -50,12 +51,12 @@ tags = [t.split('/')[-1] for t in tags if os.path.isdir(t)]
 
 if args.dataset == 'summe':
     from utils.summe_dataset import SumMeLLaMADataset as Dataset, ValBatchCollator
-    default_audio_path = 'audio_features/summe_whisper.h5'
-    default_visual_path = 'clip_features/summe_clip.h5'
+    default_audio_path = 'audio_features/summe_pann_7.h5'
+    default_visual_path = 'clip_features/clip_summe_7.h5'
 else:
     from utils.tvsum_dataset import TVSumLLaMADataset as Dataset, ValBatchCollator
-    default_audio_path = 'audio_features/tvsum_whisper.h5'
-    default_visual_path = 'clip_features/tvsum_clip.h5'
+    default_audio_path = 'audio_features/tvsum_pann_7.h5'
+    default_visual_path = 'clip_features/clip_tvsum_7.h5'
 
 audio_path = args.audio_path or default_audio_path
 visual_path = args.visual_path or default_visual_path
@@ -138,4 +139,12 @@ if args.wandb:
     wandb_run.log_artifact(results_artifact)
     if args.wandb_ckpt:
         wandb_run.log_artifact(ckpt_artifact)
+
+    plot_path = os.path.join(result_dir, '{}_{}_comparison.png'.format(args.dataset, args.weights))
+    if make_comparison_plot(exp_dataset_root, plot_path) is not None:
+        wandb_run.log({'comparison': wandb.Image(plot_path)})
+        plot_artifact = wandb.Artifact(f'{args.exp_name}-seed{args.seed}-{args.dataset}-{args.weights}-comparison', type='visualization')
+        plot_artifact.add_file(plot_path)
+        wandb_run.log_artifact(plot_artifact)
+
     wandb_run.finish()

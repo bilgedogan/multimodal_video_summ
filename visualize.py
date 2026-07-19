@@ -65,19 +65,15 @@ def load_scalars(run_dir, tag):
     return steps, values
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--logdir', type=str, default='Summaries', help='root dir to search for runs')
-    parser.add_argument('--out', type=str, default='compare.png', help='output png path')
-    parser.add_argument('--wandb', type=str2bool, default=True, help='log the comparison plot to wandb')
-    parser.add_argument('--wandb_entity', type=str, default='dogann19-istanbul-technical-university')
-    parser.add_argument('--wandb_project', type=str, default='Video_Summ_3_Modal')
-    args = parser.parse_args()
+def make_comparison_plot(logdir, out):
+    """Build comparison.png of METRICS across every run found under logdir.
 
-    run_dirs = find_runs(args.logdir)
+    Returns out path, or None if no tfevents were found (nothing written).
+    """
+    run_dirs = find_runs(logdir)
     if not run_dirs:
-        print(f'no tfevents found under {args.logdir}')
-        return
+        print(f'no tfevents found under {logdir}')
+        return None
 
     n_metrics = len(METRICS)
     ncols = 3
@@ -104,10 +100,25 @@ def main():
         ax.axis('off')
 
     fig.tight_layout()
-    fig.savefig(args.out, dpi=150)
-    print(f'saved {args.out} ({len(run_dirs)} runs found)')
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f'saved {out} ({len(run_dirs)} runs found)')
     for run_dir in run_dirs:
         print(f'  - {run_label(run_dir)}  <- {run_dir}')
+    return out
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--logdir', type=str, default='Summaries', help='root dir to search for runs')
+    parser.add_argument('--out', type=str, default='compare.png', help='output png path')
+    parser.add_argument('--wandb', type=str2bool, default=True, help='log the comparison plot to wandb')
+    parser.add_argument('--wandb_entity', type=str, default='dogann19-istanbul-technical-university')
+    parser.add_argument('--wandb_project', type=str, default='Video_Summ_3_Modal')
+    args = parser.parse_args()
+
+    if make_comparison_plot(args.logdir, args.out) is None:
+        return
 
     if args.wandb:
         run = wandb.init(entity=args.wandb_entity, project=args.wandb_project, job_type='visualize', name=os.path.basename(args.out))
