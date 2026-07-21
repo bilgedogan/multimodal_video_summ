@@ -1,0 +1,2 @@
+CUDA_VISIBLE_DEVICES=0 python train.py --seed 1112 --exp_name 'exp_0' --fusion_type 'original' --tag tvsum_split3 --model tvsum_head2_layer3 --lr 0.00007 --epochs 200 --dataset tvsum --reduced_dim 2048 --num_heads 2 --num_layers 3 --split_idx 3 --pt_path 'llama_emb/tvsum_sum/' 
+CUDA_VISIBLE_DEVICES=0 python train.py --seed 1112 --exp_name 'exp_0' --fusion_type 'original' --tag tvsum_split4 --model tvsum_head2_layer3 --lr 0.00007 --epochs 200 --dataset tvsum --reduced_dim 2048 --num_heads 2 --num_layers 3 --split_idx 4 --pt_path 'llama_emb/tvsum_sum/' 

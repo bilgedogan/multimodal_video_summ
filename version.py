@@ -1,6 +1,17 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 21.07.2026                                  *
+* Version: 1.1.8                                    *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Original llmvs added as original fusion type.   *
+* - T-test implemented.                             *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 19.07.2026                                  *
 * Version: 1.1.7                                    *
 * Branch: multimodal                                *
