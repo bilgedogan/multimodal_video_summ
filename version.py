@@ -2,6 +2,16 @@
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
 * Date: 21.07.2026                                  *
+* Version: 1.1.9                                    *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Rl weight on the total loss is changed.         *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
+* Date: 21.07.2026                                  *
 * Version: 1.1.8                                    *
 * Branch: multimodal                                *
 * Development:                                      *
