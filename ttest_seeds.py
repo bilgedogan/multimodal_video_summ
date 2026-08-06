@@ -95,6 +95,11 @@ def run_ttests(result_dir, weights):
                 sig = '*' if pval < 0.05 else ''
                 lines.append('  {}: {}={:.4f}+/-{:.4f} vs {}={:.4f}+/-{:.4f}  t={:.3f} p={:.4f}{}'.format(
                     metric, exp_a, vals_a.mean(), vals_a.std(), exp_b, vals_b.mean(), vals_b.std(), stat, pval, sig))
+                if pval < 0.05:
+                    better = exp_a if vals_a.mean() > vals_b.mean() else exp_b
+                    lines.append('    -> {} better (significant)'.format(better))
+                else:
+                    lines.append('    -> no significant difference')
             lines.append('')
 
         out_path = os.path.join(result_dir, 'ttest_{}_{}.txt'.format(dataset, weights))

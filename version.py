@@ -1,6 +1,17 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 06.08.2026                                  *
+* Version: 1.1.10                                   *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Diversity reward added.                         *
+* - Different tests implemented.                    *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 21.07.2026                                  *
 * Version: 1.1.9                                    *
 * Branch: multimodal                                *

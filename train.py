@@ -33,6 +33,8 @@ if __name__ == '__main__':
     parser.add_argument('--rl_weight', type=float, default=0.1, help='weight of the REINFORCE policy loss when fusion_type=global_rl/local_rl')
     parser.add_argument('--baseline_momentum', type=float, default=0.9, help='EMA momentum for the REINFORCE reward baseline')
     parser.add_argument('--weight_gen_dim', type=int, default=256, help='per-modality compression dim before the per-frame weight generator (fusion_type=local_weight/local_rl)')
+    parser.add_argument('--diversity_weight', type=float, default=0.0, help='weight of the temporal-window diversity term added to the loss; 0 disables it')
+    parser.add_argument('--diversity_lambda', type=int, default=20, help='temporal cutoff (in frames): pairs farther apart than this are treated as maximally dissimilar (d=1)')
 
 
     opt = parser.parse_args()

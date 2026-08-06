@@ -116,9 +116,11 @@ class LLMVS(pl.LightningModule):
                 x = w[0] * x_text + w[1] * x_audio + w[2] * x_visual
 
             self._last_w = w.detach()
-        
+
         else:
             x=x_text
+
+        self._last_x = x
 
         x = x.unsqueeze(0)
 
@@ -142,6 +144,27 @@ class LLMVS(pl.LightningModule):
         self.log(f'{stage}_w_text', w_text, on_step=(stage == 'train'), on_epoch=True, batch_size=1)
         self.log(f'{stage}_w_audio', w_audio, on_step=(stage == 'train'), on_epoch=True, batch_size=1)
         self.log(f'{stage}_w_visual', w_visual, on_step=(stage == 'train'), on_epoch=True, batch_size=1)
+
+    def _diversity_reward(self, score, x, lam):
+        # R_div = mean pairwise dissimilarity of frames, soft-weighted by predicted
+        # importance score; pairs farther apart than `lam` frames are forced to d=1
+        # (temporally distant similar content shouldn't be penalized as redundant).
+        s = score.reshape(-1)
+        T = s.size(0)
+        x_norm = F.normalize(x, dim=-1)
+        d = 1.0 - x_norm @ x_norm.t()
+
+        idx = torch.arange(T, device=x.device)
+        temporal_dist = (idx.unsqueeze(0) - idx.unsqueeze(1)).abs()
+        d = torch.where(temporal_dist > lam, torch.ones_like(d), d)
+
+        w = s.unsqueeze(0) * s.unsqueeze(1)
+        w = w * (~torch.eye(T, dtype=torch.bool, device=x.device))
+
+        denom = w.sum()
+        if denom <= 0:
+            return torch.zeros((), device=x.device)
+        return (w * d).sum() / denom
 
     def training_step(self, train_batch, batch_idx):
         x1 = train_batch['llama_embedding_userprompt'].squeeze(0)
@@ -175,6 +198,11 @@ class LLMVS(pl.LightningModule):
 
             self.log('reward_tau', reward, on_step=True, on_epoch=True, batch_size=1)
             self.log('policy_loss', policy_loss, on_step=True, on_epoch=True, batch_size=1)
+
+        if self.config.diversity_weight > 0:
+            r_div = self._diversity_reward(score, self._last_x, self.config.diversity_lambda)
+            loss = loss - self.config.diversity_weight * r_div
+            self.log('train_r_div', r_div, on_step=True, on_epoch=True, batch_size=1)
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size = 1)
         if self.config.fusion_type!="original":
