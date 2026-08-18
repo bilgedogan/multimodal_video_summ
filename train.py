@@ -35,7 +35,9 @@ if __name__ == '__main__':
     parser.add_argument('--weight_gen_dim', type=int, default=256, help='per-modality compression dim before the per-frame weight generator (fusion_type=local_weight/local_rl)')
     parser.add_argument('--diversity_weight', type=float, default=0.0, help='weight of the temporal-window diversity term added to the loss; 0 disables it')
     parser.add_argument('--diversity_lambda', type=int, default=20, help='temporal cutoff (in frames): pairs farther apart than this are treated as maximally dissimilar (d=1)')
-
+    parser.add_argument('--diffusion', type=str2bool, default=False, help='apply diffusion-based denoising to fused x after the weighted sum')
+    parser.add_argument('--diffusion_steps', type=int, default=20, help='number of diffusion timesteps (train: random t sampled; eval: full reverse chain)')
+    parser.add_argument('--diffusion_weight', type=float, default=0.1, help='weight of diffusion noise-prediction loss; isolated via detach, does not affect fusion weights or diff_net from MSE/diversity/RL')
 
     opt = parser.parse_args()
     seed_everything(opt.seed)

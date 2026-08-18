@@ -29,6 +29,8 @@ parser.add_argument('--fusion_type', type=str, default='global_weight', choices=
 parser.add_argument('--rl_weight', type=float, default=0.1, help='weight of the REINFORCE policy loss when fusion_type=global_rl/local_rl')
 parser.add_argument('--baseline_momentum', type=float, default=0.9, help='EMA momentum for the REINFORCE reward baseline')
 parser.add_argument('--weight_gen_dim', type=int, default=256, help='per-modality compression dim before the per-frame weight generator (fusion_type=local_weight/local_rl)')
+parser.add_argument('--diffusion', type=str2bool, default=False, help='must match the diffusion setting the checkpoints were trained with')
+parser.add_argument('--diffusion_steps', type=int, default=20, help='must match the diffusion_steps the checkpoints were trained with')
 parser.add_argument('--wandb', type=str2bool, default=True, help='log eval results to wandb')
 parser.add_argument('--wandb_ckpt', type=str2bool, default=False, help='also upload checkpoints as a wandb artifact (large, counts against storage quota)')
 parser.add_argument('--wandb_entity', type=str, default='dogann19-istanbul-technical-university')
@@ -76,7 +78,8 @@ for split_idx, tag in enumerate(tags[:5]):
                      tag=tag, seed=args.seed, pt_path=args.pt_path, audio_path=args.audio_path, visual_path=args.visual_path,
                      audio_dim=args.audio_dim, visual_dim=args.visual_dim, exp_name=args.exp_name,
                      weights=weights_path, fusion_type=args.fusion_type, weight_gen_dim=args.weight_gen_dim,
-                     rl_weight=args.rl_weight, baseline_momentum=args.baseline_momentum)
+                     rl_weight=args.rl_weight, baseline_momentum=args.baseline_momentum, diffusion=args.diffusion,
+                     diffusion_steps=args.diffusion_steps)
 
     test_dataset = Dataset(mode='test', split_idx=split_idx, llama_embedding=config.pt_path,
                             audio_path=audio_path, visual_path=visual_path)
@@ -94,7 +97,7 @@ for split_idx, tag in enumerate(tags[:5]):
     kTau_scores.append(results['val_kTau'])
     sRho_scores.append(results['val_sRho'])
     f1_scores.append(results['val_f1'])
-    per_split_rows.append('{}: kTau={:.3f} sRho={:.3f} f1={:.3f}'.format(
+    per_split_rows.append('{}: kTau={:.6f} sRho={:.6f} f1={:.6f}'.format(
         tag, results['val_kTau'], results['val_sRho'], results['val_f1']))
     print(per_split_rows[-1])
 
@@ -106,9 +109,9 @@ sRho_scores = np.array(sRho_scores)
 f1_scores = np.array(f1_scores)
 
 summary_lines = [
-    'kTau: {:.3f} +/- {:.3f}'.format(kTau_scores.mean(), kTau_scores.std()),
-    'sRho: {:.3f} +/- {:.3f}'.format(sRho_scores.mean(), sRho_scores.std()),
-    'f1:   {:.3f} +/- {:.3f}'.format(f1_scores.mean(), f1_scores.std()),
+    'kTau: {:.6f} +/- {:.6f}'.format(kTau_scores.mean(), kTau_scores.std()),
+    'sRho: {:.6f} +/- {:.6f}'.format(sRho_scores.mean(), sRho_scores.std()),
+    'f1:   {:.6f} +/- {:.6f}'.format(f1_scores.mean(), f1_scores.std()),
 ]
 for line in summary_lines:
     print(line)

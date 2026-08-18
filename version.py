@@ -1,6 +1,17 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 18.08.2026                                  *
+* Version: 1.1.11                                   *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Wilcoxon signed-rank test added.                *
+* - Diffusion model integrated for fused features.  *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 06.08.2026                                  *
 * Version: 1.1.10                                   *
 * Branch: multimodal                                *

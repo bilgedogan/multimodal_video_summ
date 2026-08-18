@@ -5,6 +5,7 @@ from einops import repeat
 import pytorch_lightning as pl
 from utils.evaluation_metrics import evaluate_summary
 from utils.generate_summary import generate_summary
+from networks.diffusion import DiffusionDenoiser
 import pdb
 import numpy as np
 import torch.nn.functional as F
@@ -39,6 +40,12 @@ class LLMVS(pl.LightningModule):
                     self.register_buffer('reward_baseline', torch.zeros(1))
             else:
                 self.modality_weights = nn.Parameter(torch.ones(3))
+
+        self.use_diffusion = getattr(self.config, 'diffusion', False)
+        if self.use_diffusion:
+            self.diff_net = DiffusionDenoiser(dim=self.config.reduced_dim,
+                                              hidden_dim=self.config.reduced_dim // 2,
+                                              num_steps=self.config.diffusion_steps)
 
         encoder_layer_agg = nn.TransformerEncoderLayer(d_model = self.config.reduced_dim, nhead = self.config.num_heads, batch_first = True)
         self.transformer_encoder_agg = nn.TransformerEncoder(encoder_layer_agg, num_layers=self.config.num_layers)
@@ -119,6 +126,14 @@ class LLMVS(pl.LightningModule):
 
         else:
             x=x_text
+
+        self._last_x_fused = x
+
+        if self.use_diffusion:
+            # value = denoised fused vector; the correction is detached so the main
+            # losses never reach diff_net, and diff_net is trained only by its own
+            # noise-prediction loss (on the detached fused vector) in training_step.
+            x = x + (self.diff_net.denoise(x) - x).detach()
 
         self._last_x = x
 
@@ -203,6 +218,11 @@ class LLMVS(pl.LightningModule):
             r_div = self._diversity_reward(score, self._last_x, self.config.diversity_lambda)
             loss = loss - self.config.diversity_weight * r_div
             self.log('train_r_div', r_div, on_step=True, on_epoch=True, batch_size=1)
+
+        if self.use_diffusion:
+            diff_loss = self.diff_net.diffusion_loss(self._last_x_fused.detach())
+            loss = loss + self.config.diffusion_weight * diff_loss
+            self.log('diffusion_loss', diff_loss, on_step=True, on_epoch=True, batch_size=1)
 
         self.log('train_loss', loss, on_step=True, on_epoch=True, batch_size = 1)
         if self.config.fusion_type!="original":

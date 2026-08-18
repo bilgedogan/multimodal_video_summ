@@ -152,8 +152,30 @@ At inference: `w = alpha / alpha.sum(dim=-1, keepdim=True)` per frame.
 
 The reward is always a single scalar τ per video regardless of fusion type; `local_rl` averages per-frame log-probs before multiplying by advantage.
 
+### Diffusion denoising of the fused vector (`--diffusion True`)
+
+`networks/diffusion.py:DiffusionDenoiser` — a DDPM ε-predictor (MLP: `Linear(reduced_dim, reduced_dim//2)` + sinusoidal timestep embedding → SiLU MLP → `Linear(reduced_dim//2, reduced_dim)`) applied to the fused vector `x` (N × reduced_dim), between fusion and the Transformer encoder. Linear β schedule 1e-4 → 0.02 over `--diffusion_steps` (default 20).
+
+```
+x_fused                                  # after modality weighting
+x_den = diff_net.denoise(x_fused)        # DDIM (eta=0) reverse chain T-1 → 0, no_grad,
+                                         # fused vector treated as x_T (mild noise level)
+x = x_fused + (x_den - x_fused).detach() # value = x_den; identity gradient to fusion
+```
+
+**Gradient isolation** (the point of the `.detach()`): MSE / diversity / REINFORCE losses never reach `diff_net`, and the diffusion loss never reaches fusion or the head.
+
+```
+t     ~ U{0..T-1} per frame
+x_t   = sqrt(acp[t]) * x_fused.detach() + sqrt(1-acp[t]) * noise
+diff_loss = MSE(diff_net(x_t, t), noise)
+total_loss = task_loss + diffusion_weight * diff_loss    # --diffusion_weight, default 0.1
+```
+
+`--diffusion` and `--diffusion_steps` must match at eval (`test.py`, `test_splits.py`) or the checkpoint won't load. Predefined runs: `configs/exp_2_summe_diff*.sh` (global_rl), `configs/exp_4_summe_diff*.sh` (local_rl). Logged as `diffusion_loss`.
+
 ### Loss & metrics
-- Training: MSELoss on frame scores (+ optional REINFORCE policy loss)
+- Training: MSELoss on frame scores (+ optional REINFORCE policy loss, + optional diffusion ε-loss)
 - Validation/test: F1 (knapsack-based binary summary), Kendall's τ, Spearman's ρ
 - Checkpoints saved for best `val_sRho` and best `val_kTau` separately
 
