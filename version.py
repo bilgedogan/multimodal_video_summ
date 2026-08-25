@@ -1,6 +1,18 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 25.08.2026                                  *
+* Version: 1.1.12                                   *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Extra tests are added.                          *
+* - TVT split is added.                             *
+* - Qualitative result drawing code added.          *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 18.08.2026                                  *
 * Version: 1.1.11                                   *
 * Branch: multimodal                                *

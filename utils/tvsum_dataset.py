@@ -8,7 +8,8 @@ import pandas as pd
 class TVSumLLaMADataset(Dataset):
 
     def __init__(self, mode, split_idx, llama_embedding='llama_emb/tvsum_sum/',
-                 audio_path='audio_features/tvsum_whisper.h5', visual_path='clip_features/tvsum_clip.h5'):
+                 audio_path='audio_features/tvsum_whisper.h5', visual_path='clip_features/tvsum_clip.h5',
+                 tr_val_ts=False):
         self.mode = mode
         self.dataset = 'TVSum/eccv16_dataset_tvsum_google_pool5.h5'
         self.userprompt = '{}user_prompt/user_prompt_pool.h5'.format(llama_embedding)
@@ -22,7 +23,17 @@ class TVSumLLaMADataset(Dataset):
 
         with open(self.split_file, 'r') as f:
             self.data = json.loads(f.read())
-            self.data = self.data[split_idx]
+            self.data = dict(self.data[split_idx])
+
+        # deterministic train/val carve-out: first 80% of train_keys stay train,
+        # last 20% become val. test_keys are left untouched.
+        if tr_val_ts:
+            train_keys = self.data['train_keys']
+            n_train = int(round(0.8 * len(train_keys)))
+            self.data['train_keys'] = train_keys[:n_train]
+            self.data['val_keys'] = train_keys[n_train:]
+        elif mode == 'val':
+            raise ValueError("mode='val' requires tr_val_ts=True")
 
 
     def __len__(self):

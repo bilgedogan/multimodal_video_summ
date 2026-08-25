@@ -37,6 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--diversity_lambda', type=int, default=20, help='temporal cutoff (in frames): pairs farther apart than this are treated as maximally dissimilar (d=1)')
     parser.add_argument('--diffusion', type=str2bool, default=False, help='apply diffusion-based denoising to fused x after the weighted sum')
     parser.add_argument('--diffusion_steps', type=int, default=20, help='number of diffusion timesteps (train: random t sampled; eval: full reverse chain)')
+    parser.add_argument('--tr_val_ts', type = str2bool, default = False, help = 'carve a validation set out of the train split (first 80%% train / last 20%% val, in order, reproducible); test split is untouched')
     parser.add_argument('--diffusion_weight', type=float, default=0.1, help='weight of diffusion noise-prediction loss; isolated via detach, does not affect fusion weights or diff_net from MSE/diversity/RL')
 
     opt = parser.parse_args()
@@ -44,18 +45,21 @@ if __name__ == '__main__':
     kwargs = vars(opt)
     config = Config(**kwargs)
 
+    # with tr_val_ts, model selection uses the held-out val videos instead of the test split
+    val_mode = 'val' if config.tr_val_ts else 'test'
+
     if config.dataset == 'summe':
         from utils.summe_dataset import SumMeLLaMADataset, TrainBatchCollator, ValBatchCollator
         audio_path = config.audio_path or 'audio_features/summe_pann_7.h5'
         visual_path = config.visual_path or 'clip_features/clip_summe_7.h5'
-        train_dataset = SumMeLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
-        val_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
+        train_dataset = SumMeLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path, tr_val_ts=config.tr_val_ts)
+        val_dataset = SumMeLLaMADataset(mode=val_mode, split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path, tr_val_ts=config.tr_val_ts)
     elif config.dataset == 'tvsum':
         from utils.tvsum_dataset import TVSumLLaMADataset, TrainBatchCollator,ValBatchCollator
         audio_path = config.audio_path or 'audio_features/tvsum_pann_7.h5'
         visual_path = config.visual_path or 'clip_features/clip_tvsum_7.h5'
-        train_dataset = TVSumLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
-        val_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
+        train_dataset = TVSumLLaMADataset(mode='train', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path, tr_val_ts=config.tr_val_ts)
+        val_dataset = TVSumLLaMADataset(mode=val_mode, split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path, tr_val_ts=config.tr_val_ts)
     
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=8, collate_fn = TrainBatchCollator(), pin_memory=True, persistent_workers=True)
     val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8, collate_fn = ValBatchCollator(), pin_memory=True, persistent_workers=True)

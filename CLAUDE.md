@@ -190,6 +190,19 @@ total_loss = task_loss + diffusion_weight * diff_loss    # --diffusion_weight, d
 | TVSum video features | `TVSum/eccv16_dataset_tvsum_google_pool5.h5` |
 | Split definitions | `dataset/summe_splits.json`, `dataset/tvsum_splits.json` |
 
+### Train/val/test splits (`--tr_val_ts`)
+
+Default (`False`): train on `train_keys`, validate on `test_keys` (original LLMVS protocol).
+
+With `--tr_val_ts True`: `train_keys` is cut in order — first 80% stay train, last 20% become a held-out val set used for validation and checkpoint selection. `test_keys` is untouched, so `test.py` / `test_splits.py` still report on the same test videos.
+
+| Dataset | train : val : test |
+|---|---|
+| SumMe | 16 : 4 : 5 |
+| TVSum | 32 : 8 : 10 |
+
+The cut is a positional slice of the JSON key order — no shuffling, no RNG, so it is identical across seeds and runs. `mode='val'` on the dataset classes raises unless `tr_val_ts=True`.
+
 Alternative audio/visual files (`_pann_5.h5`, `_whisper.h5`, non-7 clip files) exist but are not the training default. Override with `--audio_path` / `--visual_path`.
 
 ## WandB

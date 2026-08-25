@@ -29,6 +29,7 @@ parser.add_argument('--fusion_type', type=str, default='global_weight', choices=
 parser.add_argument('--rl_weight', type=float, default=0.1, help='weight of the REINFORCE policy loss when fusion_type=global_rl/local_rl')
 parser.add_argument('--baseline_momentum', type=float, default=0.9, help='EMA momentum for the REINFORCE reward baseline')
 parser.add_argument('--weight_gen_dim', type=int, default=256, help='per-modality compression dim before the per-frame weight generator (fusion_type=local_weight/local_rl)')
+parser.add_argument('--tr_val_ts', type=str2bool, default=False, help='must match the tr_val_ts setting used at train time; the test split itself is identical either way')
 parser.add_argument('--diffusion', type=str2bool, default=False, help='must match the diffusion setting the checkpoints were trained with')
 parser.add_argument('--diffusion_steps', type=int, default=20, help='must match the diffusion_steps the checkpoints were trained with')
 parser.add_argument('--wandb', type=str2bool, default=True, help='log eval results to wandb')
@@ -79,10 +80,10 @@ for split_idx, tag in enumerate(tags[:5]):
                      audio_dim=args.audio_dim, visual_dim=args.visual_dim, exp_name=args.exp_name,
                      weights=weights_path, fusion_type=args.fusion_type, weight_gen_dim=args.weight_gen_dim,
                      rl_weight=args.rl_weight, baseline_momentum=args.baseline_momentum, diffusion=args.diffusion,
-                     diffusion_steps=args.diffusion_steps)
+                     diffusion_steps=args.diffusion_steps, tr_val_ts=args.tr_val_ts)
 
     test_dataset = Dataset(mode='test', split_idx=split_idx, llama_embedding=config.pt_path,
-                            audio_path=audio_path, visual_path=visual_path)
+                            audio_path=audio_path, visual_path=visual_path, tr_val_ts=args.tr_val_ts)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=8,
                               collate_fn=ValBatchCollator(), pin_memory=True)
 

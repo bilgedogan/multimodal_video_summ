@@ -30,6 +30,7 @@ if __name__ == '__main__':
     parser.add_argument('--visual_dim', type=int, default=768)
     parser.add_argument('--exp_name', type=str, default='exp_default')
     parser.add_argument('--fusion_type', type=str, default='global_weight', choices=['global_weight', 'global_rl','local_weight','local_rl', 'original'], help='the type of fusion used by the checkpoint being tested')
+    parser.add_argument('--tr_val_ts', type=str2bool, default=False, help='must match the tr_val_ts setting used at train time; the test split itself is identical either way')
     parser.add_argument('--diffusion', type=str2bool, default=False, help='must match the diffusion setting the checkpoint was trained with')
     parser.add_argument('--diffusion_steps', type=int, default=20, help='must match the diffusion_steps the checkpoint was trained with')
 
@@ -41,12 +42,12 @@ if __name__ == '__main__':
         from utils.summe_dataset import SumMeLLaMADataset, ValBatchCollator
         audio_path = config.audio_path or 'audio_features/summe_pann_7.h5'
         visual_path = config.visual_path or 'clip_features/clip_summe_7.h5'
-        test_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
+        test_dataset = SumMeLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path, tr_val_ts=config.tr_val_ts)
     elif 'tvsum' in config.dataset:
         from utils.tvsum_dataset import TVSumLLaMADataset, ValBatchCollator
         audio_path = config.audio_path or 'audio_features/tvsum_pann_7.h5'
         visual_path = config.visual_path or 'clip_features/clip_tvsum_7.h5'
-        test_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path)
+        test_dataset = TVSumLLaMADataset(mode='test', split_idx=config.split_idx, llama_embedding = config.pt_path, audio_path=audio_path, visual_path=visual_path, tr_val_ts=config.tr_val_ts)
 
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=32, collate_fn = ValBatchCollator(), pin_memory=True)
 
