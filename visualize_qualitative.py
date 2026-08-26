@@ -11,8 +11,8 @@ three stacked rows:
 Example
 -------
 python visualize_qualitative.py \
-    --run_dir Summaries/exp_4/seed_1112/summe/summe_split4 \
-    --weights rho --out_dir figures/exp_4_split4
+    --run_dir Summaries/exp_4_tvt/seed_1112/tvsum/tvsum_split0 \
+    --weights tau --out_dir figures/exp_4_tvt_seed1112_tvsum_split0
 """
 
 import os

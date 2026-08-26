@@ -156,14 +156,18 @@ The reward is always a single scalar τ per video regardless of fusion type; `lo
 
 `networks/diffusion.py:DiffusionDenoiser` — a DDPM ε-predictor (MLP: `Linear(reduced_dim, reduced_dim//2)` + sinusoidal timestep embedding → SiLU MLP → `Linear(reduced_dim//2, reduced_dim)`) applied to the fused vector `x` (N × reduced_dim), between fusion and the Transformer encoder. Linear β schedule 1e-4 → 0.02 over `--diffusion_steps` (default 20).
 
+**SDEdit formulation** — the fused vector is treated as a clean `x_0`, re-noised to a small level `t*` with the same forward process used in training, then carried back to 0. The chain therefore starts from a state that is actually in the training distribution ("corrupt, then project back to the manifold"), and every timestep the net sees at inference is one it was trained on.
+
 ```
 x_fused                                  # after modality weighting
-x_den = diff_net.denoise(x_fused)        # DDIM (eta=0) reverse chain T-1 → 0, no_grad,
-                                         # fused vector treated as x_T (mild noise level)
-x = x_fused + (x_den - x_fused).detach() # value = x_den; identity gradient to fusion
+noise = randn(seed=sdedit_seed)          # fixed generator, independent of global RNG
+x_t*  = sqrt(acp[t*]) * x_fused + sqrt(1-acp[t*]) * noise    # Eq. 7, t* = sdedit_t (default 5)
+x     = DDIM(eta=0) reverse chain t* → 0                     # differentiable, no no_grad
 ```
 
-**Gradient isolation** (the point of the `.detach()`): MSE / diversity / REINFORCE losses never reach `diff_net`, and the diffusion loss never reaches fusion or the head.
+Deterministic given `x_fused`: eta=0 chain plus a `torch.Generator` re-seeded with `sdedit_seed` on every call, so repeated runs are bit-identical.
+
+**Gradient flow**: `denoise` stays in the graph — MSE / diversity / REINFORCE losses backprop through all `t*+1` reverse steps into `diff_net` **and** on into the fusion weights (via the `sqrt(acp[t*]) * x_fused` term). The diffusion ε-loss still runs on a detached `x_fused`, so it never reaches fusion or the head. `diff_net` thus has two gradient sources — task loss and its own ε-loss — which can pull against each other; watch `diffusion_loss` for a rise while the task loss falls.
 
 ```
 t     ~ U{0..T-1} per frame
@@ -172,7 +176,7 @@ diff_loss = MSE(diff_net(x_t, t), noise)
 total_loss = task_loss + diffusion_weight * diff_loss    # --diffusion_weight, default 0.1
 ```
 
-`--diffusion` and `--diffusion_steps` must match at eval (`test.py`, `test_splits.py`) or the checkpoint won't load. Predefined runs: `configs/exp_2_summe_diff*.sh` (global_rl), `configs/exp_4_summe_diff*.sh` (local_rl). Logged as `diffusion_loss`.
+`t*` and the noise seed are constructor args of `DiffusionDenoiser` (`sdedit_t=5`, `sdedit_seed=0`), not CLI flags — `networks/model.py` builds it with `dim`, `hidden_dim`, `num_steps` only. Change them there or add the flags. `--diffusion` and `--diffusion_steps` must match at eval (`test.py`, `test_splits.py`) or the checkpoint won't load. Predefined runs: `configs/exp_2_summe_diff*.sh` (global_rl), `configs/exp_4_summe_diff*.sh` (local_rl). Logged as `diffusion_loss`.
 
 ### Loss & metrics
 - Training: MSELoss on frame scores (+ optional REINFORCE policy loss, + optional diffusion ε-loss)

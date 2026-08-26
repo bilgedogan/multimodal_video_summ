@@ -11,3 +11,10 @@ clip_features/
 Summaries_Oguzhanfeatures/
 wandb
 figures/
+figures_old/
+cost_table.json
+cost_table.txt
+make_cost_table.py
+profile_cost.py
+a.sh
+b.sh

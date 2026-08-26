@@ -14,17 +14,14 @@ def timestep_embedding(t, dim):
 
 class DiffusionDenoiser(nn.Module):
     """DDPM noise predictor over per-frame fused feature vectors.
-
-    Trained with the standard epsilon-prediction objective on the fused vector x
-    (treated as x_0). At forward time the fused vector is instead treated as x_T of a
-    mildly noised chain and refined by a deterministic (DDIM, eta=0) reverse pass, so
-    the module acts as a learned denoiser of the modality fusion output.
     """
 
-    def __init__(self, dim, hidden_dim, num_steps, time_dim=128):
+    def __init__(self, dim, hidden_dim, num_steps, time_dim=128, sdedit_t=5, sdedit_seed=0):
         super().__init__()
         self.num_steps = num_steps
         self.time_dim = time_dim
+        self.sdedit_t = int(max(0, min(sdedit_t, num_steps - 1)))
+        self.sdedit_seed = sdedit_seed
 
         self.time_mlp = nn.Sequential(
             nn.Linear(time_dim, hidden_dim),
@@ -63,13 +60,27 @@ class DiffusionDenoiser(nn.Module):
         eps_hat = self.forward(self.q_sample(x0, t, noise), t)
         return nn.functional.mse_loss(eps_hat, noise)
 
-    @torch.no_grad()
-    def denoise(self, x):
-        """Full deterministic reverse chain, starting from the fused vector as x_T."""
-        x_t = x
-        for i in reversed(range(self.num_steps)):
-            t = torch.full((x.size(0),), i, device=x.device, dtype=torch.long)
-            eps = self.forward(x_t, t)
+    def denoise(self, x, t_star=None):
+        """SDEdit refinement: noise x to level t*, then DDIM (eta=0) back to t=0.
+
+        Deterministic given x: the forward-noise draw uses a generator seeded with
+        `sdedit_seed`, independent of global RNG state.
+
+        Differentiable: gradients from the task loss flow back through the t*+1 reverse
+        steps into diff_net and on into the fusion weights.
+        """
+        t_star = self.sdedit_t if t_star is None else int(max(0, min(t_star, self.num_steps - 1)))
+
+        gen = torch.Generator(device=x.device)
+        gen.manual_seed(self.sdedit_seed)
+        noise = torch.randn(x.shape, generator=gen, device=x.device, dtype=x.dtype)
+
+        t = torch.full((x.size(0),), t_star, device=x.device, dtype=torch.long)
+        x_t = self.q_sample(x, t, noise)
+
+        for i in reversed(range(t_star + 1)):
+            t_i = torch.full((x.size(0),), i, device=x.device, dtype=torch.long)
+            eps = self.forward(x_t, t_i)
             x0 = (x_t - self.sqrt_one_minus_acp[i] * eps) / self.sqrt_acp[i]
             acp_prev = self.alphas_cumprod[i - 1] if i > 0 else torch.ones((), device=x.device)
             x_t = acp_prev.sqrt() * x0 + (1.0 - acp_prev).sqrt() * eps

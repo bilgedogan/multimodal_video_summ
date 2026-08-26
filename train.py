@@ -39,7 +39,8 @@ if __name__ == '__main__':
     parser.add_argument('--diffusion_steps', type=int, default=20, help='number of diffusion timesteps (train: random t sampled; eval: full reverse chain)')
     parser.add_argument('--tr_val_ts', type = str2bool, default = False, help = 'carve a validation set out of the train split (first 80%% train / last 20%% val, in order, reproducible); test split is untouched')
     parser.add_argument('--diffusion_weight', type=float, default=0.1, help='weight of diffusion noise-prediction loss; isolated via detach, does not affect fusion weights or diff_net from MSE/diversity/RL')
-
+    parser.add_argument('--sdedit_t', type=int, default=5, help='number of diffusion timesteps to noise to before reverse (train: random t sampled; eval: full reverse chain)')
+    
     opt = parser.parse_args()
     seed_everything(opt.seed)
     kwargs = vars(opt)

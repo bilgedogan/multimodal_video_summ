@@ -45,7 +45,8 @@ class LLMVS(pl.LightningModule):
         if self.use_diffusion:
             self.diff_net = DiffusionDenoiser(dim=self.config.reduced_dim,
                                               hidden_dim=self.config.reduced_dim // 2,
-                                              num_steps=self.config.diffusion_steps)
+                                              num_steps=self.config.diffusion_steps,
+                                              sdedit_t=self.config.sdedit_t)
 
         encoder_layer_agg = nn.TransformerEncoderLayer(d_model = self.config.reduced_dim, nhead = self.config.num_heads, batch_first = True)
         self.transformer_encoder_agg = nn.TransformerEncoder(encoder_layer_agg, num_layers=self.config.num_layers)
@@ -130,10 +131,11 @@ class LLMVS(pl.LightningModule):
         self._last_x_fused = x
 
         if self.use_diffusion:
-            # value = denoised fused vector; the correction is detached so the main
-            # losses never reach diff_net, and diff_net is trained only by its own
-            # noise-prediction loss (on the detached fused vector) in training_step.
-            x = x + (self.diff_net.denoise(x) - x).detach()
+            # SDEdit refinement of the fused vector, kept in the graph: the main losses
+            # backprop through the DDIM chain into diff_net and on into the fusion
+            # weights. diff_net additionally gets its own noise-prediction loss on the
+            # detached fused vector in training_step.
+            x = self.diff_net.denoise(x)
 
         self._last_x = x
 

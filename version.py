@@ -1,6 +1,16 @@
 """
 *****************************************************
 * Author: Nadide Bilge Dogan                        *
+* Date: 27.08.2026                                  *
+* Version: 1.1.13                                   *
+* Branch: multimodal                                *
+* Development:                                      *
+* - Diffusion methodology changed to sdedit.        *
+*****************************************************
+"""
+"""
+*****************************************************
+* Author: Nadide Bilge Dogan                        *
 * Date: 25.08.2026                                  *
 * Version: 1.1.12                                   *
 * Branch: multimodal                                *
